@@ -31,14 +31,22 @@
 ;;
 ;;; Commentary:
 ;;
-;; Org-Babel support for evaluating elixir source code.
+;; Org Babel support for evaluating Elixir source code
+;; blocks.
 ;;
 ;; To use ob-elixir in an org-babel source block,
-;; elixir language must be enabled in the
-;; custom org-babel-load-languages alist.
+;; the Elixir language must be enabled in the
+;; custom org-babel-load-languages alist:
+;;
+;; (add-to-list 'org-babel-tangle-lang-exts '("elixir" . "iex"))
 ;;
 ;; Alternatively, running the following snippet during
-;; initialization.
+;; Emacs initialization (or latter):
+;;
+;; (org-babel-do-load-languages
+;;   'org-babel-load-languages
+;;   '((emacs-lisp . t)
+;;     (elixir . t)))
 ;;
 ;;; Code:
 
