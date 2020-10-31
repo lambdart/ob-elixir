@@ -1,0 +1,144 @@
+#+AUTHOR: esac
+#+EMAIL: esac-io@tutanota.com
+#+KEYWORDS: readme, emacs, elisp, elixir, ob, package, library
+#+LANGUAGE: en
+#+PROPERTY: header-args :tangle no
+#+TITLE: ob-elixir
+
+* Overview
+
+  Babel provides what is known as literate programming to org-mode,
+  from Org's manual:
+
+  "Source code here refers to any plain text collection of computer
+  instructions, possibly with comments, written using a human-readable
+  programming language. Org can manage source code in an Org document
+  when the source code is identified with begin and end markers. Working
+  with source code begins with identifying source code blocks. A source
+  code block can be placed almost anywhere in an Org document; it is not
+  restricted to the preamble or the end of the document. However, Org
+  cannot manage a source code block if it is placed inside an Org comment
+  or within a fixed width section."
+
+  Example:
+
+  #+BEGIN_SRC elixir
+  "hello" <> " world"
+  #+END_SRC
+
+  #+RESULTS:
+  : hello world
+
+  The result was generated using the =ob-elixir= library, with the
+  help of `org-babel-execute-src-block' interface function.
+
+  Checkout the complete manual [[https://orgmode.org/org.html#Working-with-Source-Code][here]]
+
+* Version
+
+  - Alpha: 0.0.1
+
+* Dependencies
+** Elisp
+
+   - ob
+   - ob-tangle
+
+** Non-Elisp
+
+   - Erlang
+   - Elixir
+   - REPL: iex
+
+* Tested on
+
+  - FreeBSD 12.1
+  - Emacs 27.1, 28.0.50
+  - Org-mode 9.3
+
+* Installation
+** Manually
+
+   Clone =ob-elixir= repository to an arbitrary location:
+
+   #+BEGIN_SRC sh
+
+   $ git clone https://github.com/esac-io/ob-elixir ~/.emacs.d/site-elisp/ob-elixir
+
+   #+END_SRC
+
+   Add =ob-elixir= directory to =load-path= in your
+   Emacs initialization file (~init.el~) and load it.
+
+   #+BEGIN_SRC emacs-lisp
+
+   ;; add to load-path
+   (add-to-list 'load-path "/replace/me/to/ob-elixir/full/path")
+
+   ;; load ob-elixir feature
+   (require 'ob-elixir nil t)
+
+   #+END_SRC
+
+   - TIP: For a more dynamic approach:
+     * =M-x load-library RET ob-elixir RET=
+
+** Compile
+
+   * Note: Optional (recommended).
+
+   To compile the files to the =Elisp= byte-compiled representation:
+
+   #+BEGIN_SRC sh
+
+   [at-ob-elixir-root-directory]$ make
+
+   #+END_SRC
+
+* Setup
+
+  Configure babel support in org-mode, i.e, evaluate this
+  code snippet during =Emacs= initialization (or latter).
+
+  #+BEGIN_SRC emacs-lisp
+  (org-babel-do-load-languages
+   'org-babel-load-languages
+   '((emacs-lisp . t)
+     (elixir . t)))
+  #+END_SRC
+
+* Customize
+
+  * Note: To see all the options inside =Emacs= and customize it,
+    use: =M-x customize-group RET ob-babel RET=.
+
+  - =ob-babel-elixir-program= :: Name of the program that will
+    execute the Elixir source code block. (Default: iex)
+
+  - =ob-babel-elixir-timeout= :: Subprocess output timeout in
+    seconds. (Default: 60)
+
+  - =ob-babel-elixir-mode= :: Elixir major mode.
+    (Default 'elixir-mode)
+
+  - =ob-babel-elixir-table-flag= :: Non-nil means reassemble tables
+    in the RESULTS. (Default nil)
+
+* References
+
+  1. https://orgmode.org/org.html#Working-with-Source-Code
+  2. https://orgmode.org/org.html
+
+* LICENSE
+  MIT
+* EOF
+
+  #+BEGIN_SRC
+  I believe that the time is ripe for significantly better
+  documentation of programs, and that we can best achieve this
+  by considering programs to be works of literature.
+  Hence, my title: "Literate Programming."
+  #+END_SRC
+  | Donald Knuth |
+
+
