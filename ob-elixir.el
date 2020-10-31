@@ -45,22 +45,22 @@
 (require 'ob)
 (require 'ob-tangle)
 
-(defcustom org-babel-elixir-repl "iex"
-  "Name of the command for executing Elixir code."
+(defcustom org-babel-elixir-program "iex"
+  "Name of the program that will execute the Elixir source code block."
   :group 'org-babel
   :type 'string)
 
 (defcustom org-babel-elixir-mode 'elixir-mode
-  "Preferred elixir mode for use in running Elixir interactively."
+  "Elixir major mode."
   :group 'org-babel
   :type 'symbol)
 
 (defcustom org-babel-elixir-timeout 60
-  "Subprocess - iex - output timeout in seconds."
+  "Subprocess output timeout in seconds."
   :group 'org-babel
   :type 'integer)
 
-(defcustom org-babel-elixir-reassemble-table nil
+(defcustom org-babel-elixir-table-flag nil
   "Non-nil means reassemble tables in the RESULTS."
   :group 'org-babel
   :type 'boolean)
@@ -160,7 +160,7 @@
       ;; set program args
       (setq program-args (apply 'append (org-babel-elixir-parse-proc-params params)))
       ;; start the process
-      (apply 'start-process name buffer org-babel-elixir-repl program-args))
+      (apply 'start-process name buffer org-babel-elixir-program program-args))
     ;; set process filter
     (set-process-filter (get-buffer-process name)
                         'ob-babel-elixir-proc-filter)
