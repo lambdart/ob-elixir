@@ -239,10 +239,10 @@ White space here is any of: space, tab, Emacs newline
   (org-babel-script-escape
    (org-babel-elixir--trim-string results)))
 
-(defun org-babel-elixir-insert-results (results params &optional parse)
-  "Parse and insert (implicit) the RESULTS in the current org buffer."
+(defun org-babel-elixir-insert-results (results params &optional parse-table)
+  "Maybe PARSE-TABLE and insert (implicit) the RESULTS in the current org buffer."
   ;; if parse if non-nil just return the 'raw' results
-  (if (not parse) results
+  (if (not parse-table) results
     ;; set columns and rows names
     (let ((columns (org-babel-pick-name
                     (cdr (assoc :colname-names params))
@@ -286,7 +286,7 @@ White space here is any of: space, tab, Emacs newline
       ;; finally: parse (maybe)  and insert (implicit) the results
       (org-babel-elixir-insert-results results
                                        params
-                                       t))))
+                                       org-babel-elixir-table-flag))))
 
 ;; add elixir to org-babel language extensions
 (add-to-list 'org-babel-tangle-lang-exts '("elixir" . "iex"))
