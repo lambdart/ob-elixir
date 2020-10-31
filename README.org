@@ -22,9 +22,9 @@
 
   Example:
 
-  \#+BEGIN_SRC elixir
+  \#+BEGIN_SRC elixir \
    "hello" <> " world"
-  \#+END_SRC
+  \#+END_SRC \
 
   \#+RESULTS:
    : hello world
