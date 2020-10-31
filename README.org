@@ -22,12 +22,12 @@
 
   Example:
 
-  #+BEGIN_SRC elixir
-  "hello" <> " world"
-  #+END_SRC
+  \#+BEGIN_SRC elixir
+   "hello" <> " world"
+  \#+END_SRC
 
-  #+RESULTS:
-  : hello world
+  \#+RESULTS:
+   : hello world
 
   The result was generated using the =ob-elixir= library, with the
   help of `org-babel-execute-src-block' interface function.
