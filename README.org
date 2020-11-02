@@ -24,12 +24,12 @@
 
   \#+BEGIN_SRC elixir
 
-   "hello" <> " world"
+  "hello" <> " world"
 
   \#+END_SRC
 
   \#+RESULTS:
-   : hello world
+  : hello world
 
   The result was generated using the =ob-elixir= library, with the
   help of `org-babel-execute-src-block' interface function.
@@ -38,7 +38,7 @@
 
 * Version
 
-  - Alpha: 0.0.1
+  - Alpha: 0.0.2
 
 * Dependencies
 ** Elisp
@@ -108,6 +108,115 @@
    '((emacs-lisp . t)
      (elixir . t)))
   #+END_SRC
+
+* Arguments
+
+  Passing arguments to be evaluate can be achieved using the source
+  code block header keyword =:var=, the value types will be parsed
+  from Elisp to Elixir syntax, note cons cells ='()= will be mapped
+  to tuples, and vector to tuples. The basic types have a direct
+  relation.
+
+  See the examples below for a better understanding of what does it
+  really means.
+
+** Atom
+
+   #+BEGIN_SRC elixir :results "replace" :var n=':atom
+   i n
+   #+END_SRC
+
+   +RESULTS:
+   : Term
+   :   :atom
+   : Data type
+   :   Atom
+   : Reference modules
+   :   Atom
+   : Implemented protocols
+   :   IEx.Info, Inspect, List.Chars, String.Chars
+
+** Boolean
+
+   \#+BEGIN_SRC elixir :results "replace" :var n='true
+   is_boolean(n)
+   \#+END_SRC
+
+   +RESULTS:
+   : true
+
+** Integer
+
+   \#+BEGIN_SRC elixir :results "replace" :var n=1
+   i n
+   \#+END_SRC
+
+   +RESULTS:
+   : Term
+   :   1
+   : Data type
+   :   Integer
+   : Reference modules
+   :   Integer
+   : Implemented protocols
+   :   IEx.Info, Inspect, List.Chars, String.
+
+** String
+
+   \#+BEGIN_SRC elixir :results "replace" :var n="string"
+   i n
+   \#+END_SRC
+
+   +RESULTS:
+   #+begin_example
+   Term
+     "string"
+   Data type
+     BitString
+   Byte size
+     6
+   Description
+     This is a string: a UTF-8 encoded binary. It's printed surrounded by
+     "double quotes" because all UTF-8 encoded code points in it are printable.
+   Raw representation
+     <<115, 116, 114, 105, 110, 103>>
+   Reference modules
+     String, :binary
+   Implemented protocols
+     Collectable, IEx.Info, Inspect, List.Chars, String.Chars
+   #+end_example
+
+** List
+
+   \#+BEGIN_SRC elixir :results "replace" :var n=[1 2 3]
+   i n
+   \#+END_SRC
+
+   +RESULTS:
+   : Term
+   :   [1, 2, 3]
+   : Data type
+   :   List
+   : Reference modules
+   :   List
+   : Implemented protocols
+   :   Collectable, Enumerable, IEx.Info, Inspect, List.Chars, String.Chars
+
+** Tuples
+
+   \#+BEGIN_SRC elixir :results "replace" :var n='(1 "tuple" :true)
+   i n
+   \#+END_SRC
+
+   +RESULTS:
+   : Term
+   :   {1, "tuple", true}
+   : Data type
+   :   Tuple
+   : Reference modules
+   :   Tuple
+   : Implemented protocols
+   :   IEx.Info, Inspect
 
 * Customize
 
