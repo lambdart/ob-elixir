@@ -94,8 +94,7 @@
 (defvar ob-babel-elixir-eoe-indicator "\u2029"
   "A string to indicate that evaluation has completed.")
 
-(defvar org-babel-elixir-buffers '((:default . "*Iex*"))
-  "Elixir (iex) process buffers list.")
+(defvar ob-babel-elixir-hline nil)
 
 (defun ob-babel-elixir-proc-output ()
   "Return process output."
@@ -113,14 +112,13 @@
                ob-babel-elixir-raw-output))
     (sit-for 0.1)))
 
-(defun ob-babel-elixir-send-string (session body)
-  "Send BODY (input) string to Elixir (iex) SESSION process."
-  (let ((process (get-buffer-process (format "*elixir-%s*" session)))
-        (body (format "%s\n" body)))
+(defun ob-babel-elixir-send-string (process string)
+  "Send STRING to Elixir PROCESS."
+  (let ((string (format "%s\n" string)))
     ;; clean process raw output
     (setq ob-babel-elixir-raw-output "")
     ;; send string to process
-    (process-send-string process body)
+    (process-send-string process string)
     ;; accept process output (default timeout 1 minute)
     (accept-process-output process org-babel-elixir-timeout nil t)
     ;; send end indicator
@@ -143,8 +141,8 @@
         (dolist (regexp regexps)
           ;; update the process output string
           (setq output (replace-regexp-in-string regexp "" output))))
-        ;; return output
-        output)))
+      ;; return output
+      output)))
 
 (defun ob-babel-elixir-proc-filter (process output)
   "Filter PROCESS OUTPUT."
@@ -155,10 +153,11 @@
   (setq ob-babel-elixir-raw-output
         (concat ob-babel-elixir-raw-output output)))
 
-(defun ob-babel-elixir-start-process (session name params)
+(defun ob-babel-elixir-start-process (name params)
   "Parse PARAMS to process args and start the process using its BUFFER-NAME."
   (let* ((buffer (get-buffer-create name))
-         (program-args nil))
+         (program-args nil)
+         (process nil))
     ;; with current buffer
     (with-current-buffer buffer
       ;; make a local environment variables for subprocesses list
@@ -166,15 +165,21 @@
       ;; set process environments list
       (setq process-environment (cons "TERM=vt100" process-environment))
       ;; set program args
-      (setq program-args (apply 'append (org-babel-elixir-parse-proc-params params)))
+      (setq program-args (apply 'append
+                                (org-babel-elixir-parse-proc-params params)))
       ;; start the process
       (apply 'start-process name buffer org-babel-elixir-program program-args))
-    ;; set process filter
-    (set-process-filter (get-buffer-process name)
-                        'ob-babel-elixir-proc-filter)
-    ;; send setup input (disable colors)
-    (ob-babel-elixir-send-string session
-                                 "IEx.configure(colors: [enabled: false])")))
+    ;; update process auxiliary variable
+    (setq process (get-buffer-process name))
+    ;; if process was properly created
+    (when process
+      ;; set process filter
+      (set-process-filter process 'ob-babel-elixir-proc-filter)
+      ;; send setup input (disable colors)
+      (ob-babel-elixir-send-string process
+                                   "IEx.configure(colors: [enabled: false])"))
+    ;; return process
+    process))
 
 (defun org-babel-elixir-parse-proc-params (params)
   "Prepare process param options list."
@@ -197,19 +202,22 @@
                   params-alist))))
 
 (defun org-babel-elixir-var-to-elixir (var)
-  "Convert an elisp value to an Elixir variable.
-Convert an elisp value, VAR, into a string of Elixir source code
+  "Convert an elisp value to a lua variable.
+Convert an Elisp value, VAR, into a string of elixir source code
 specifying a variable of the same value."
-  (if (listp var)
-      (concat "[" (mapconcat #'org-babel-elixir-var-to-elixir var ", ") "]")
-    (if (equal var 'hline) nil
+  (cond
+   ;; if it's cons cell map it to tuples
+   ((listp var)
+    (concat "{" (mapconcat #'org-babel-elixir-var-to-elixir var ", ") "}"))
+   ;; if it's a vector map it to elixir list
+   ((vectorp var)
+    (concat "[" (mapconcat #'org-babel-elixir-var-to-elixir var ", ") "]"))
+   ;; default get the variable
+   (t
+    (if (eq var 'hline) nil
       (format
-       (if (and (stringp var)
-                (string-match "[\n\r]" var))
-           "\"\"%S\"\"" "%S")
-       (if (stringp var)
-           (substring-no-properties var)
-         var)))))
+       (if (and (stringp var) (string-match "[\n\r]" var)) "[=[%s]=]" "%S")
+       (if (stringp var) (substring-no-properties var) var))))))
 
 (defun org-babel-variable-assignments:elixir (params)
   "Return a list of Elixir statements assigning the block's variables."
@@ -272,29 +280,39 @@ White space here is any of: space, tab, Emacs newline
          (temp-file (org-babel-temp-file "elixir-"))
          ;; set process buffer name
          (name (format "*elixir-%s*" session))
+         ;; get default process
+         (process (get-buffer-process name))
          ;; auxiliary
+         (vars nil)
          (results nil))
-    ;; TODO: test variable assignments
-    ;; (org-babel-variable-assignments:elixir params)
     ;; start (iex) process if isn't already alive
-    (unless (process-live-p (get-buffer-process name))
-      (ob-babel-elixir-start-process session
-                                     name
-                                     params))
-    ;; insert source code block in the temporary file
-    (with-temp-file temp-file (insert body))
-    ;; evaluate body (temporary file contest) and save the result
-    (setq results
-          (ob-babel-elixir-evaluate session
-                                    (format "import_file(\"%s\")" temp-file)))
-    ;; verify evaluation results
-    (if (not results)
-        ;; debug message
-        (message "[ob-elixir]: evaluation fail")
-      ;; finally: parse (maybe)  and insert (implicit) the results
-      (org-babel-elixir-insert-results results
-                                       params
-                                       org-babel-elixir-table-flag))))
+    (unless (process-live-p process)
+      ;; set process variable
+      (setq process (ob-babel-elixir-start-process name params)))
+    ;; verify process
+    (if (not process)
+        (error "[ob-elixir]: missing process")
+      ;; variable assignments
+      (setq vars (org-babel-variable-assignments:elixir params))
+      ;; update source body
+      (with-temp-file temp-file
+        ;; insert vars
+        (mapc (lambda (var) (insert var "\n")) vars)
+        ;; insert body
+        (insert (org-babel-chomp body)))
+      ;; evaluate body (temporary file contest)
+      ;; and save the result
+      (setq results
+            (ob-babel-elixir-evaluate process
+                                      (format "import_file(\"%s\")" temp-file)))
+      ;; verify evaluation results
+      (if (not results)
+          ;; debug message
+          (message "[ob-elixir]: evaluation fail")
+        ;; finally: parse (maybe) and insert (implicit) the results
+        (org-babel-elixir-insert-results results
+                                         params
+                                         org-babel-elixir-table-flag)))))
 
 ;; add elixir to org-babel language extensions
 (add-to-list 'org-babel-tangle-lang-exts '("elixir" . "iex"))
