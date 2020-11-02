@@ -94,7 +94,8 @@
 (defvar ob-babel-elixir-eoe-indicator "\u2029"
   "A string to indicate that evaluation has completed.")
 
-(defvar ob-babel-elixir-hline nil)
+(defvar ob-babel-elixir-hline nil
+  "Default hline value.")
 
 (defun ob-babel-elixir-proc-output ()
   "Return process output."
@@ -130,9 +131,9 @@
     ;; return process raw output
     (ob-babel-elixir-proc-output)))
 
-(defun ob-babel-elixir-evaluate (session body)
-  "Evaluate BODY in the Elixir SESSION."
-  (let ((output (ob-babel-elixir-send-string session body)))
+(defun ob-babel-elixir-evaluate (process body)
+  "Evaluate BODY in the Elixir PROCESS session."
+  (let ((output (ob-babel-elixir-send-string process body)))
     ;; if output size its not greater then 0, return nil
     (if (not (> (length output) 0)) nil
       ;; otherwise filter the raw output and return it
@@ -201,23 +202,20 @@
                       `(,(car option) ,(assoc-default key params))))
                   params-alist))))
 
-(defun org-babel-elixir-var-to-elixir (var)
-  "Convert an elisp value to a lua variable.
-Convert an Elisp value, VAR, into a string of elixir source code
-specifying a variable of the same value."
-  (cond
-   ;; if it's cons cell map it to tuples
-   ((listp var)
-    (concat "{" (mapconcat #'org-babel-elixir-var-to-elixir var ", ") "}"))
-   ;; if it's a vector map it to elixir list
-   ((vectorp var)
-    (concat "[" (mapconcat #'org-babel-elixir-var-to-elixir var ", ") "]"))
-   ;; default get the variable
-   (t
-    (if (eq var 'hline) nil
-      (format
-       (if (and (stringp var) (string-match "[\n\r]" var)) "[=[%s]=]" "%S")
-       (if (stringp var) (substring-no-properties var) var))))))
+(defun org-babel-elixir-var-value (var)
+  "Convert an Elisp VAR into a string."
+  (let ((values (when (or (listp var)
+                          (vectorp var))
+                  (mapconcat #'prin1-to-string var ", "))))
+    (cond
+     ;; if it's cons cell map it to tuples
+     ((listp var) (concat "{" values "}"))
+     ;; if it's a vector map it to elixir list
+     ((vectorp var) (concat "[" values "]"))
+     ;; default parse to string
+     (t
+      (if (eq var 'hline) nil
+        (prin1-to-string var))))))
 
 (defun org-babel-variable-assignments:elixir (params)
   "Return a list of Elixir statements assigning the block's variables."
@@ -226,12 +224,12 @@ specifying a variable of the same value."
     ;; delete nil values
     (delq nil
           ;; generate a list of values in the format: str = str
-          (mapcar (lambda (pair)
+          (mapcar (lambda (var)
                     ;; get variable value
-                    (setq value (org-babel-elixir-var-to-elixir (cdr pair)))
+                    (setq value (org-babel-elixir-var-value (cdr var)))
                     ;; when value its not nil parse it
                     (if (not value) nil
-                      (format "%s = %s" (car pair) value)))
+                      (format "%s=%s" (car var) value)))
                   vars))))
 
 (defun org-babel-elixir--trim-string (results)
@@ -256,7 +254,7 @@ White space here is any of: space, tab, Emacs newline
    (org-babel-elixir--trim-string results)))
 
 (defun org-babel-elixir-insert-results (results params &optional parse-table)
-  "Maybe PARSE-TABLE and insert (implicit) the RESULTS in the current org buffer."
+  "Maybe PARSE-TABLE and insert (implicit) the RESULTS."
   ;; if parse if non-nil just return the 'raw' results
   (if (not parse-table) results
     ;; set columns and rows names
