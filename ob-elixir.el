@@ -2,7 +2,7 @@
 ;;
 ;; Author: esac <esac-io@tutanota.com>
 ;; Maintainer: esac
-;; Version: 0.0.1 Alpha
+;; Version: 0.0.2 Alpha
 ;; Keywords: org-mode ob-elixir elixir iex
 ;;
 ;; This file is NOT part of GNU Emacs.
