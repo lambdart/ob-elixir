@@ -159,6 +159,22 @@
    : Implemented protocols
    :   IEx.Info, Inspect, List.Chars, String.
 
+** Float
+
+     +BEGIN_SRC elixir :var n=1.0
+     : i n
+     +END_SRC
+
+     +RESULTS:
+     : Term
+     :   1.0
+     : Data type
+     :   Float
+     : Reference modules
+     :   Float
+     : Implemented protocols
+     :   IEx.Info, Inspect, List.Chars, String.Chars
+
 ** String
 
    +BEGIN_SRC elixir :results "replace" :var n="string"
