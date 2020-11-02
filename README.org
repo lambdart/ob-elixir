@@ -22,13 +22,11 @@
 
   Example:
 
-  \#+BEGIN_SRC elixir
+  +BEGIN_SRC elixir
+  : "hello" <> " world"
+  +END_SRC
 
-  "hello" <> " world"
-
-  \#+END_SRC
-
-  \#+RESULTS:
+  +RESULTS:
   : hello world
 
   The result was generated using the =ob-elixir= library, with the
@@ -122,9 +120,9 @@
 
 ** Atom
 
-   #+BEGIN_SRC elixir :results "replace" :var n=':atom
-   i n
-   #+END_SRC
+   +BEGIN_SRC elixir :results "replace" :var n=':atom
+   : i n
+   +END_SRC
 
    +RESULTS:
    : Term
@@ -138,18 +136,18 @@
 
 ** Boolean
 
-   \#+BEGIN_SRC elixir :results "replace" :var n='true
-   is_boolean(n)
-   \#+END_SRC
+   +BEGIN_SRC elixir :results "replace" :var n='true
+   : is_boolean(n)
+   +END_SRC
 
    +RESULTS:
    : true
 
 ** Integer
 
-   \#+BEGIN_SRC elixir :results "replace" :var n=1
-   i n
-   \#+END_SRC
+   +BEGIN_SRC elixir :results "replace" :var n=1
+   : i n
+   +END_SRC
 
    +RESULTS:
    : Term
@@ -163,9 +161,9 @@
 
 ** String
 
-   \#+BEGIN_SRC elixir :results "replace" :var n="string"
-   i n
-   \#+END_SRC
+   +BEGIN_SRC elixir :results "replace" :var n="string"
+   : i n
+   +END_SRC
 
    +RESULTS:
    #+begin_example
@@ -188,9 +186,9 @@
 
 ** List
 
-   \#+BEGIN_SRC elixir :results "replace" :var n=[1 2 3]
-   i n
-   \#+END_SRC
+   +BEGIN_SRC elixir :results "replace" :var n=[1 2 3]
+   : i n
+   +END_SRC
 
    +RESULTS:
    : Term
@@ -204,9 +202,9 @@
 
 ** Tuples
 
-   \#+BEGIN_SRC elixir :results "replace" :var n='(1 "tuple" :true)
-   i n
-   \#+END_SRC
+   +BEGIN_SRC elixir :results "replace" :var n='(1 "tuple" :true)
+   : i n
+   +END_SRC
 
    +RESULTS:
    : Term
