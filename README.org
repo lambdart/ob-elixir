@@ -111,9 +111,11 @@
 
   Passing arguments to be evaluate can be achieved using the source
   code block header keyword =:var=, the value types will be parsed
-  from Elisp to Elixir syntax, note cons cells ='()= will be mapped
-  to tuples, and vector to tuples. The basic types have a direct
-  relation.
+  from Elisp to Elixir syntax, note cons cells =()= will be mapped
+  to tuples, and vector =[]= to list.
+
+  The other basic types (Atom, Boolean, Integer, Float, and String)
+  have a direct relation.
 
   See the examples below for a better understanding of what does it
   really means.
