@@ -1,9 +1,9 @@
 ;;; ob-elixir.el --- Org Babel functions for Elixir evaluation -*- lexical-binding: t; -*-
 ;;
 ;; Author: esac <esac-io@tutanota.com>
-;; Maintainer: esac
-;; Version: 0.0.2 Alpha
+;; Homepage: https://github.com/esac-io/ob-elixir
 ;; Keywords: org-mode ob-elixir elixir iex
+;; Version: 0.0.3 Alpha
 ;;
 ;; This file is NOT part of GNU Emacs.
 ;;
@@ -202,8 +202,9 @@
                       `(,(car option) ,(assoc-default key params))))
                   params-alist))))
 
-(defun org-babel-elixir-var-value (var)
-  "Convert an Elisp VAR into a string."
+(defun org-babel-elixir-var-to-elixir (var)
+  "Convert an elisp VAR into a string of Elixir source code.
+Specifying a VAR of the same value."
   (let ((values (when (or (listp var)
                           (vectorp var))
                   (mapconcat #'prin1-to-string var ", "))))
@@ -226,7 +227,7 @@
           ;; generate a list of values in the format: str = str
           (mapcar (lambda (var)
                     ;; get variable value
-                    (setq value (org-babel-elixir-var-value (cdr var)))
+                    (setq value (org-babel-elixir-var-to-elixir (cdr var)))
                     ;; when value its not nil parse it
                     (if (not value) nil
                       (format "%s=%s" (car var) value)))
@@ -248,69 +249,72 @@ White space here is any of: space, tab, Emacs newline
     string))
 
 (defun org-babel-elixir-table-or-string (results)
-  "Convert RESULTS into an appropriate elisp value."
+  "If the results look like a table, then convert them into an
+Emacs-lisp table, otherwise return the results as a string."
   ;; safely convert tables into elisp lists
   (org-babel-script-escape
    (org-babel-elixir--trim-string results)))
 
-(defun org-babel-elixir-insert-results (results params &optional parse-table)
-  "Maybe PARSE-TABLE and insert (implicit) the RESULTS."
+(defun org-babel-elixir-insert-results (results table-flag)
+  "Insert RESULTS and maybe parse its layout."
   ;; if parse if non-nil just return the 'raw' results
-  (if (not parse-table) results
-    ;; set columns and rows names
-    (let ((columns (org-babel-pick-name
-                    (cdr (assoc :colname-names params))
-                    (cdr (assoc :colnames params))))
-          (rows (org-babel-pick-name
-                 (cdr (assoc :rowname-names params))
-                 (cdr (assoc :rownames params)))))
-      ;; reassemble table
-      (org-babel-reassemble-table (org-babel-elixir-table-or-string results)
-                                  columns
-                                  rows))))
+  (if (not table-flag) results
+    (org-babel-elixir-table-or-string results)))
 
-;;;###autoload
-(defun org-babel-execute:elixir (body params)
-  "Execute a block of Elixir code (BODY) with Babel."
-  ;; set session
-  (let* ((session (cdr (assoc :session params)))
-         ;; set temp file name
-         (temp-file (org-babel-temp-file "elixir-"))
-         ;; set process buffer name
-         (name (format "*elixir-%s*" session))
+(defun org-babel-elixir-initiate-session (session params)
+  "If there is not a current inferior-process-buffer in SESSION
+then create. Return the initialized session."
+  (let* ((name (format "*elixir-%s*" session)) ;; set process buffer name
          ;; get default process
-         (process (get-buffer-process name))
-         ;; auxiliary
-         (vars nil)
-         (results nil))
+         (process (get-buffer-process name)))
     ;; start (iex) process if isn't already alive
     (unless (process-live-p process)
       ;; set process variable
       (setq process (ob-babel-elixir-start-process name params)))
+    ;; return process or nil (implicit)
+    process))
+
+(defun org-babel-expand-body:elixir (body params)
+  "Expand BODY , return the expanded body."
+  ;; variable assignments
+  (let* ((vars (org-babel-variable-assignments:elixir params))
+         (temp-file (org-babel-temp-file "elixir-"))
+         (full-body (concat
+                     ;; map parsed variables
+                     (mapc (lambda (var) (insert var "\n")) vars)
+                     ;; strip a trailing space or carriage return from STRING
+                     (org-babel-chomp body))))
+    ;; insert into temporary file
+    (with-temp-file temp-file (insert full-body))
+    ;; return temp-file
+    temp-file))
+
+;;;###autoload
+(defun org-babel-execute:elixir (body params)
+  "Execute a block of Elixir code with org-babel.
+This function is called by `org-babel-execute-src-block'"
+  (let* ((session (cdr (assoc :session params)))
+         ;; get default session process
+         (process (org-babel-elixir-initiate-session session params))
+         ;; auxiliary
+         (results nil))
     ;; verify process
     (if (not process)
-        (error "[ob-elixir]: missing process")
-      ;; variable assignments
-      (setq vars (org-babel-variable-assignments:elixir params))
-      ;; update source body
-      (with-temp-file temp-file
-        ;; insert vars
-        (mapc (lambda (var) (insert var "\n")) vars)
-        ;; insert body
-        (insert (org-babel-chomp body)))
-      ;; evaluate body (temporary file contest)
-      ;; and save the result
+        (error "[ob-elixir]: missing inferior process")
+      ;; expand body and evaluate
       (setq results
             (ob-babel-elixir-evaluate process
-                                      (format "import_file(\"%s\")" temp-file)))
+                                      (format "import_file(\"%s\")"
+                                              (org-babel-expand-body:elixir body params))))
       ;; verify evaluation results
-      (if (not results)
-          ;; debug message
-          (message "[ob-elixir]: evaluation fail")
-        ;; finally: parse (maybe) and insert (implicit) the results
-        (org-babel-elixir-insert-results results
-                                         params
-                                         org-babel-elixir-table-flag)))))
+      (if (not (eq results nil))
+          ;; finally: insert the results
+          (org-babel-elixir-insert-results results
+                                           org-babel-elixir-table-flag)
+        ;; debug message
+        (message "[ob-elixir]: evaluation fail, no results")
+        ;; return nil
+        nil))))
 
 ;; add elixir to org-babel language extensions
 (add-to-list 'org-babel-tangle-lang-exts '("elixir" . "iex"))
