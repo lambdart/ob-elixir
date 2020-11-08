@@ -36,7 +36,7 @@
 
 * Version
 
-  - Alpha: 0.0.2
+  - Alpha: 0.0.3
 
 * Dependencies
 ** Elisp
