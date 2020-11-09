@@ -97,6 +97,11 @@
 (defvar ob-babel-elixir-hline nil
   "Default hline value.")
 
+(defmacro ob-babel-elixir--message (fmt &rest args)
+  "Display a internal message at the bottom of the screen.
+See `message' for more information about FMT and ARGS arguments."
+  `(message (concat "[ob-elixir]: ",fmt) ,@args))
+
 (defun ob-babel-elixir-proc-output ()
   "Return process output."
   ;; update eoe-indicator
@@ -149,7 +154,7 @@
   "Filter PROCESS OUTPUT."
   ;; debug message
   (unless (process-live-p process)
-    (message "process die"))
+    (ob-babel-elixir--message "process die"))
   ;; concat raw process output
   (setq ob-babel-elixir-raw-output
         (concat ob-babel-elixir-raw-output output)))
@@ -286,8 +291,8 @@ then create. Return the initialized session."
                      (org-babel-chomp body))))
     ;; insert into temporary file
     (with-temp-file temp-file (insert full-body))
-    ;; return temp-file
-    temp-file))
+    ;; return full-body
+    (format "import_file(\"%s\")" temp-file)))
 
 ;;;###autoload
 (defun org-babel-execute:elixir (body params)
@@ -300,19 +305,19 @@ This function is called by `org-babel-execute-src-block'"
          (results nil))
     ;; verify process
     (if (not process)
-        (error "[ob-elixir]: missing inferior process")
+        (ob-babel-elixir--message "missing inferior process")
       ;; expand body and evaluate
       (setq results
             (ob-babel-elixir-evaluate process
-                                      (format "import_file(\"%s\")"
-                                              (org-babel-expand-body:elixir body params))))
+                                      ;; full-body
+                                      (org-babel-expand-body:elixir body params)))
       ;; verify evaluation results
       (if (not (eq results nil))
           ;; finally: insert the results
           (org-babel-elixir-insert-results results
                                            org-babel-elixir-table-flag)
         ;; debug message
-        (message "[ob-elixir]: evaluation fail, no results")
+        (ob-babel-elixir--message "evaluation fail, no results")
         ;; return nil
         nil))))
 
