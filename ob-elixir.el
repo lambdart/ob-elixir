@@ -51,8 +51,6 @@
 ;;; Code:
 
 (require 'ob)
-(require 'ob-ref)
-(require 'ob-eval)
 (require 'ob-comint)
 ;; (require 'ob-tangle)
 
@@ -90,6 +88,7 @@
     "\\`[ \t\n]*"
     "[ \t\n]*\\'"
     "\r"
+    "\1^M"
     "^import_file([^)]+)\n")
   "List of filter regex expressions.")
 
@@ -99,8 +98,7 @@
 (defvar org-babel-elixir-eoe-indicator "\u2029"
   "End of evaluation indicator.")
 
-(defvar org-babel-elixir-hline nil
-  "Default hline value.")
+;; (defvar org-babel-elixir-hline "\n")
 
 (defmacro org-babel-elixir--message (fmt &rest args)
   "Display a internal message at the bottom of the screen.
@@ -142,7 +140,7 @@ See `message' for more information about FMT and ARGS arguments."
     (org-babel-elixir-process-output)))
 
 (defun org-babel-elixir-insert-string (process string)
-  "Insert the STRING in the PROCESS buffer."
+  "Insert the STRING in the PROCESS buffer (debugging)."
   (when (buffer-live-p (process-buffer process))
     (with-current-buffer (process-buffer process)
       (let ((moving (= (point) (process-mark process))))
@@ -276,8 +274,8 @@ then create. Return the initialized session."
                        nil
                        (if (not params) nil
                          (org-babel-elixir-parse-process-params params))))
-          ;; return session if comint buffer was created
-          (if buffer session (error "make-comint buffer: nil")))))))
+          ;; return session if (comint) buffer was created
+          (if buffer session (error "make-comint (funcall) fail")))))))
 
 (defun org-babel-elixir-evaluate-external-process (body params)
   ;; &optional result-type result-params column-names-p row-names-p)
@@ -291,26 +289,30 @@ then create. Return the initialized session."
       (setq process (org-babel-elixir-start-process name params)))
     ;; send string
     (let ((output (org-babel-elixir-send-string process body)))
-      ;; if output size its not greater then 0, return nil
-      (if (not (> (length output) 0)) nil
-        ;; otherwise filter the raw output and return it
-        (let ((regexps org-babel-elixir-filter-regexps))
-          ;; apply string replace using the list of regexps
-          (dolist (regexp regexps)
-            ;; update the process output string
-            (setq output (replace-regexp-in-string regexp "" output))))
-        ;; return output
-        output))))
+      ;; if output size its not greater then 0, return nil,
+      ;; otherwise the output
+      (if (not (> (length output) 0)) nil output))))
 
 (defun org-babel-elixir-evaluate-session (session body)
   "Evaluate BODY in SESSION (comint buffer)."
-  (let ((buffer (format "*%s*" session))
-        (send-wait (lambda ()
-                     (comint-send-input nil t)
-                     (sleep-for 0 5))))
-    (org-babel-comint-with-output (buffer "" t body)
-      (funcall 'insert body)
-      (funcall send-wait))))
+  (let* ((buffer (format "*%s*" session))
+         (send-wait (lambda ()
+                      (comint-send-input t nil)
+                      (sleep-for 0 5)))
+         (insert-line (lambda (line)
+                        (insert line "\n")
+                        (funcall send-wait)))
+         (lines `("IEx.configure(colors: [enabled: false])"
+                  ,body
+                  "IEx.configure(colors: [enabled: true])"))
+         ;; auxiliary
+         (results '()))
+    ;; set results (comint output)
+    (setq results (org-babel-comint-with-output (buffer ":ok" t body)
+                    (dolist (line lines)
+                      (funcall insert-line line))))
+    ;; return results (convert to strings)
+    (prin1-to-string (butlast (nthcdr 2 results) 3))))
 
 (defun org-babel-elixir-evaluate (session body params)
   "Evaluate julia code in BODY."
@@ -346,7 +348,8 @@ then create. Return the initialized session."
                      ;; strip a trailing space or carriage return from STRING
                      (org-babel-chomp body))))
     ;; insert into temporary file
-    (with-temp-file temp-file (insert full-body))
+    (with-temp-file temp-file
+      (insert full-body))
     ;; return full-body
     (format "import_file(\"%s\")" temp-file)))
 
@@ -354,10 +357,7 @@ then create. Return the initialized session."
 (defun org-babel-execute:elixir (body params)
   "Execute a block of Elixir code with org-babel.
 This function is called by `org-babel-execute-src-block'"
-  (let* (
-         ;; necessary?
-         (params (org-babel-process-params params))
-
+  (let* ( ;; (params (org-babel-process-params params))
          ;; set the session if the session variable is non-nil
          (session (org-babel-elixir-initiate-session (cdr (assoc :session params))
                                                      params))
@@ -368,13 +368,18 @@ This function is called by `org-babel-execute-src-block'"
           (org-babel-elixir-evaluate session
                                      (org-babel-expand-body:elixir body params)
                                      params))
-    ;; verify evaluation results
-    (if (not (eq results nil))
+    (if (not results) nil
+      ;; show a debug message, necessary?
+      ;; (org-babel-elixir--message "evaluation fail, no results")
+      ;; otherwise filter the raw output and return it
+      (let ((regexps org-babel-elixir-filter-regexps))
+        (prin1 (length results))
+        ;; apply string replace using the list of regexps
+        (dolist (regexp regexps)
+          ;; update the process output string
+          (setq results (replace-regexp-in-string regexp "" results)))
         ;; finally: insert the results
-        (org-babel-elixir-insert-results results
-                                         org-babel-elixir-table-flag)
-      ;; debug message
-      (org-babel-elixir--message "evaluation fail, no results") nil)))
+        (org-babel-elixir-insert-results results t)))))
 
 ;; add elixir to org-babel language extensions
 (add-to-list 'org-babel-tangle-lang-exts '("elixir" . "iex"))
