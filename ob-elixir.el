@@ -1,7 +1,8 @@
 ;;; ob-elixir.el --- Org Babel functions for Elixir evaluation -*- lexical-binding: t; -*-
 ;;
-;; Author: esac <esac-io@tutanota.com>
-;; Homepage: https://github.com/esac-io/ob-elixir
+;; Author: lambdart <lambdart@protonmail.com>
+;; Maintainer: lambdart
+;; Homepage: https://github.com/lambdart/ob-elixir
 ;; Keywords: org-mode ob-elixir elixir iex
 ;; Version: 0.0.3 Alpha
 ;;
@@ -9,7 +10,7 @@
 ;;
 ;;; MIT License
 ;;
-;; Copyright (c) 2020 esac
+;; Copyright (c) 2020 lambdart
 ;;
 ;; Permission is hereby granted, free of charge, to any person obtaining a copy
 ;; of this software and associated documentation files (the "Software"), to deal
@@ -52,7 +53,6 @@
 
 (require 'ob)
 (require 'ob-comint)
-;; (require 'ob-tangle)
 
 (defcustom org-babel-elixir-program "iex"
   "Name of the program that will execute the Elixir source code block."

@@ -1,5 +1,5 @@
-#+AUTHOR: esac
-#+EMAIL: esac-io@tutanota.com
+#+AUTHOR: lambdart
+#+EMAIL: lambdart@protonmail.com
 #+KEYWORDS: readme, emacs, elisp, elixir, ob, package, library
 #+LANGUAGE: en
 #+PROPERTY: header-args :tangle no
@@ -63,7 +63,7 @@
 
    #+BEGIN_SRC sh
 
-   $ git clone https://github.com/esac-io/ob-elixir ~/.emacs.d/site-elisp/ob-elixir
+   $ git clone https://github.com/lambdart/ob-elixir ~/.emacs.d/site-elisp/ob-elixir
 
    #+END_SRC
 
