@@ -74,6 +74,11 @@
   :group 'org-babel
   :type 'boolean)
 
+(defcustom org-babel-elixir-none-var 'hline
+  "Replace `Nil' in elixir tables with this before returning."
+  :group 'org-babel
+  :type 'symbol)
+
 (defconst org-babel-header-args:elixir
   '((cookie . :any)
     (name .  :any)
@@ -98,7 +103,8 @@
 (defvar org-babel-elixir-eoe-indicator "\u2029"
   "End of evaluation indicator.")
 
-;; (defvar org-babel-elixir-hline "\n")
+(defvar org-babel-elixir-hline "nil"
+  "Our hline string value.")
 
 (defmacro org-babel-elixir--message (fmt &rest args)
   "Display a internal message at the bottom of the screen.
@@ -140,7 +146,7 @@ See `message' for more information about FMT and ARGS arguments."
     (org-babel-elixir-process-output)))
 
 (defun org-babel-elixir-insert-string (process string)
-  "Insert the STRING in the PROCESS buffer (debugging)."
+  "Insert the STRING in the PROCESS buffer."
   (when (buffer-live-p (process-buffer process))
     (with-current-buffer (process-buffer process)
       (let ((moving (= (point) (process-mark process))))
@@ -162,9 +168,9 @@ See `message' for more information about FMT and ARGS arguments."
   (setq org-babel-elixir-raw-output
         (concat org-babel-elixir-raw-output output)))
 
-(defun org-babel-elixir-start-process (name params)
-  "Parse PARAMS to process args and start the process using its BUFFER-NAME."
-  (let* ((buffer (get-buffer-create name))
+(defun org-babel-elixir-start-process (buffer-name params)
+  "Parse the process PARAMS, start the process using its BUFFER-NAME."
+  (let* ((buffer (get-buffer-create buffer-name))
          (program-args nil)
          (process nil))
     ;; with current buffer
@@ -177,21 +183,21 @@ See `message' for more information about FMT and ARGS arguments."
     (setq program-args (apply 'append
                               (org-babel-elixir-parse-process-params params)))
     ;; start the process
-    (apply 'start-process name buffer org-babel-elixir-program program-args)
+    (apply 'start-process buffer-name buffer org-babel-elixir-program program-args)
     ;; update process auxiliary variable
-    (setq process (get-buffer-process name))
+    (setq process (get-buffer-process buffer-name))
     ;; if process was properly created
-    (when process
-      ;; set process filter
-      (set-process-filter process 'org-babel-elixir-process-filter)
-      ;; send setup input (disable colors)
-      (org-babel-elixir-send-string process
-                                    "IEx.configure(colors: [enabled: false])"))
+    (and process
+         ;; set process filter
+         (set-process-filter process 'org-babel-elixir-process-filter)
+         ;; send setup input (disable colors)
+         (org-babel-elixir-send-string process
+                                       "IEx.configure(colors: [enabled: false])"))
     ;; return process
     process))
 
 (defun org-babel-elixir-parse-process-params (params)
-  "Prepare process param options list."
+  "Parse the process PARAMS."
   (let ((params-alist '((:sname "--sname")
                         (:name "--name")
                         (:cookie "--cookie")
@@ -212,52 +218,42 @@ See `message' for more information about FMT and ARGS arguments."
                   params-alist))))
 
 (defun org-babel-elixir-var-to-elixir (var)
-  "Convert an elisp VAR into a string of Elixir source code.
-Specifying a VAR of the same value."
-  (let ((values (when (or (listp var)
-                          (vectorp var))
-                  (mapconcat #'prin1-to-string var ", "))))
-    (cond
-     ;; if it's cons cell map it to tuples
-     ((listp var) (concat "{" values "}"))
-     ;; if it's a vector map it to elixir list
-     ((vectorp var) (concat "[" values "]"))
-     ;; default parse to string
-     (t
-      (if (eq var 'hline) nil
-        (prin1-to-string var))))))
+  "Convert an elisp value to an Elixir variable.
+Convert an elisp value, VAR, into a string of Elixir source code
+specifying a variable of the same value."
+  (if (listp var)
+      (concat "[" (mapconcat #'org-babel-elixir-var-to-elixir var ", ") "]")
+    (if (equal var 'hline) org-babel-elixir-hline
+      (format
+       (if (and (stringp var) (string-match "[\n\r]" var)) "\"\"%S\"\"" "%S")
+       (if (stringp var) (substring-no-properties var) var)))))
 
 (defun org-babel-elixir--trim-string (results)
-  "Remove white spaces in beginning and ending of RESULTS.
-White space here is any of: space, tab, Emacs newline
-(line feed, ASCII 10)."
-  ;; set regex expression list
-  (let ((regexps '("[ \t\n]*\\'"
-                   "\\`[ \t\n]*"))
-        ;; auxiliary string
+  "Remove white spaces from RESULTS."
+  (let ((regexps '("[ \t\n]*\\'" "\\`[ \t\n]*"))
         (string results))
     (dolist (regexp regexps)
-      ;; update string
       (setq string (replace-regexp-in-string regexp "" string)))
-    ;; return it
     string))
 
 (defun org-babel-elixir-table-or-string (results)
-  "If the results look like a table, then convert them into an
-Emacs-lisp table, otherwise return the results as a string."
-  ;; safely convert tables into elisp lists
-  (org-babel-script-escape
-   (org-babel-elixir--trim-string results)))
+  "Convert the RESULTS to a table or return the string."
+  (let ((results (org-babel-script-escape
+                  (org-babel-elixir--trim-string results))))
+    (if (listp results)
+        (mapcar (lambda (var)
+                  (if (eq var 'nil)
+                      org-babel-elixir-none-var
+                    var))
+                results)
+      results)))
 
-(defun org-babel-elixir-insert-results (results table-flag)
-  "Insert RESULTS and maybe parse its layout."
-  ;; if parse if non-nil just return the 'raw' results
-  (if (not table-flag) results
-    (org-babel-elixir-table-or-string results)))
+(defun org-babel-elixir-insert-results (results)
+  "Insert the code block evaluation RESULTS."
+  (org-babel-elixir-table-or-string results))
 
 (defun org-babel-elixir-initiate-session (&optional session params)
-  "If there is not a current inferior-process-buffer in SESSION
-then create. Return the initialized session."
+  "Initialize a session named SESSION according to PARAMS."
   (unless (string= session "none")
     (let* ((session (or session org-babel-elixir-program))
            (buffer (format "*%s*" session)))
@@ -268,18 +264,18 @@ then create. Return the initialized session."
         (when (executable-find org-babel-elixir-program)
           ;; set comint buffer
           (setq buffer
-                (apply 'make-comint
-                       session
-                       org-babel-elixir-program
-                       nil
+                (apply 'make-comint session org-babel-elixir-program nil
                        (if (not params) nil
                          (org-babel-elixir-parse-process-params params))))
-          ;; return session if (comint) buffer was created
-          (if buffer session (error "make-comint (funcall) fail")))))))
+          ;; error if (comint) buffer wasn't created
+          (unless buffer
+            (error "[ob-elixir]: Error, wasn't possible to create the process"))
+          ;; otherwise return session
+          session)))))
 
 (defun org-babel-elixir-evaluate-external-process (body params)
   ;; &optional result-type result-params column-names-p row-names-p)
-  "Evaluate BODY in the Elixir external process."
+  "Start external process using its PARAMS and evaluate BODY."
   (let* ((name "*elixir-session-none*")
          ;; get default process
          (process (get-buffer-process name)))
@@ -291,10 +287,10 @@ then create. Return the initialized session."
     (let ((output (org-babel-elixir-send-string process body)))
       ;; if output size its not greater then 0, return nil,
       ;; otherwise the output
-      (if (not (> (length output) 0)) nil output))))
+      (and (> (length output) 0) output))))
 
 (defun org-babel-elixir-evaluate-session (session body)
-  "Evaluate BODY in SESSION (comint buffer)."
+  "Evaluate BODY in SESSION, i.e, the comint buffer."
   (let* ((buffer (format "*%s*" session))
          (send-wait (lambda ()
                       (comint-send-input t nil)
@@ -305,81 +301,84 @@ then create. Return the initialized session."
          (lines `("IEx.configure(colors: [enabled: false])"
                   ,body
                   "IEx.configure(colors: [enabled: true])"))
-         ;; auxiliary
-         (results '()))
-    ;; set results (comint output)
-    (setq results (org-babel-comint-with-output (buffer ":ok" t body)
+         ;; set results (comint output)
+         (results (org-babel-comint-with-output (buffer org-babel-elixir-hline t body)
                     (dolist (line lines)
-                      (funcall insert-line line))))
+                      (funcall insert-line line)))))
     ;; return results (convert to strings)
     (prin1-to-string (butlast (nthcdr 2 results) 3))))
 
-(defun org-babel-elixir-evaluate (session body params)
-  "Evaluate julia code in BODY."
+(defun org-babel-elixir-evaluate (session body &optional params)
+  "Evaluate BODY elixir code in SESSION."
   (if session
-      ;; use comint session buffer
+      ;; use the comint buffer
       (org-babel-elixir-evaluate-session session body)
     ;; no session use external process
     (org-babel-elixir-evaluate-external-process body params)))
 
+(defun org-babel-prep-session:elixir (session params)
+  "Prepare SESSION according to the header arguments in PARAMS.
+VARS contains resolved variable references."
+  (let* ((session (org-babel-elixir-initiate-session session))
+         (var-lines
+          (org-babel-variable-assignments:elixir params)))
+    (org-babel-comint-in-buffer session
+      (mapc (lambda (var)
+              (end-of-line 1) (insert var) (comint-send-input)
+              (org-babel-comint-wait-for-output session))
+            var-lines))
+    session))
+
+(defun org-babel-load-session:elixir (session body params)
+  "Load BODY into SESSION."
+  (save-window-excursion
+    (let ((buffer (org-babel-prep-session:elixir session params)))
+      (with-current-buffer buffer
+        (goto-char (process-mark (get-buffer-process (current-buffer))))
+        (insert (org-babel-chomp body)))
+      buffer)))
+
 (defun org-babel-variable-assignments:elixir (params)
-  "Return a list of Elixir statements assigning the block's variables."
-  (let ((vars (org-babel--get-vars params))
-        (value nil))
-    ;; delete nil values
-    (delq nil
-          ;; generate a list of values in the format: str = str
-          (mapcar (lambda (var)
-                    ;; get variable value
-                    (setq value (org-babel-elixir-var-to-elixir (cdr var)))
-                    ;; when value its not nil parse it
-                    (if (not value) nil
-                      (format "%s=%s" (car var) value)))
-                  vars))))
+  "Return a list of Elixir statements assigning the block's variables.
+The variables are defined in PARAMS."
+  (mapcar
+   (lambda (pair)
+     (format "%s=%s\n"
+             (car pair)
+             (org-babel-elixir-var-to-elixir (cdr pair))))
+   (org-babel--get-vars params)))
 
 (defun org-babel-expand-body:elixir (body params)
-  "Expand BODY , return the expanded body."
+  "Assign variables defined in PARAMS (if any), and save BODY in a temporary file."
   ;; variable assignments
   (let* ((vars (org-babel-variable-assignments:elixir params))
          (temp-file (org-babel-temp-file "elixir-"))
-         (full-body (concat
-                     ;; map parsed variables
-                     (mapc (lambda (var) (insert var "\n")) vars)
-                     ;; strip a trailing space or carriage return from STRING
-                     (org-babel-chomp body))))
+         (full-body (concat (mapconcat (lambda (var) var) vars "") (org-babel-chomp body))))
+    (princ full-body)
     ;; insert into temporary file
     (with-temp-file temp-file
       (insert full-body))
-    ;; return full-body
+    ;; return the full body
     (format "import_file(\"%s\")" temp-file)))
 
 ;;;###autoload
 (defun org-babel-execute:elixir (body params)
-  "Execute a block of Elixir code with org-babel.
-This function is called by `org-babel-execute-src-block'"
-  (let* ( ;; (params (org-babel-process-params params))
-         ;; set the session if the session variable is non-nil
-         (session (org-babel-elixir-initiate-session (cdr (assoc :session params))
-                                                     params))
-         ;; auxiliary
-         (results nil))
-    ;; expand body and evaluate
-    (setq results
-          (org-babel-elixir-evaluate session
-                                     (org-babel-expand-body:elixir body params)
-                                     params))
-    (if (not results) nil
-      ;; show a debug message, necessary?
-      ;; (org-babel-elixir--message "evaluation fail, no results")
-      ;; otherwise filter the raw output and return it
-      (let ((regexps org-babel-elixir-filter-regexps))
-        (prin1 (length results))
-        ;; apply string replace using the list of regexps
-        (dolist (regexp regexps)
-          ;; update the process output string
-          (setq results (replace-regexp-in-string regexp "" results)))
-        ;; finally: insert the results
-        (org-babel-elixir-insert-results results t)))))
+  "Parse PARAMS and Evaluate BODY (elixir source code block).
+This function is called by `org-babel-execute-src-block'."
+  (let* ((params (org-babel-process-params params))
+         (session (org-babel-elixir-initiate-session (cdr (assoc :session params)) params))
+         (results (org-babel-elixir-evaluate session
+                                             (org-babel-expand-body:elixir body params)
+                                             params)))
+    (princ params)
+    (and results
+     (let ((regexps org-babel-elixir-filter-regexps))
+       ;; apply string replace using the list of regexps
+       (dolist (regexp regexps)
+         ;; update the process output string
+         (setq results (replace-regexp-in-string regexp "" results)))
+       ;; finally: insert the results
+       (org-babel-elixir-insert-results results)))))
 
 ;; add elixir to org-babel language extensions
 (add-to-list 'org-babel-tangle-lang-exts '("elixir" . "iex"))
