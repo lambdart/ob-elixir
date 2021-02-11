@@ -359,7 +359,6 @@ The variables are defined in PARAMS."
   (let* ((vars (org-babel-variable-assignments:elixir params))
          (temp-file (org-babel-temp-file "elixir-"))
          (full-body (concat (mapconcat (lambda (var) var) vars "\n") (org-babel-chomp body))))
-    (prin1 full-body)
     ;; insert into temporary file
     (with-temp-file temp-file
       (insert full-body))
@@ -375,7 +374,6 @@ This function is called by `org-babel-execute-src-block'."
          (results (org-babel-elixir-evaluate session
                                              (org-babel-expand-body:elixir body params)
                                              params)))
-    (princ params)
     (and results
      (let ((regexps org-babel-elixir-filter-regexps))
        ;; apply string replace using the list of regexps
