@@ -348,7 +348,7 @@ specifying a variable of the same value."
 The variables are defined in PARAMS."
   (mapcar
    (lambda (pair)
-     (format "%s = %s"
+     (format "%s = %s\n"
              (car pair)
              (org-babel-elixir-var-to-elixir (cdr pair))))
    (org-babel--get-vars params)))
@@ -358,7 +358,10 @@ The variables are defined in PARAMS."
   ;; variable assignments
   (let* ((vars (org-babel-variable-assignments:elixir params))
          (temp-file (org-babel-temp-file "elixir-"))
-         (full-body (concat (mapconcat (lambda (var) var) vars "\n") (org-babel-chomp body))))
+         (full-body (concat (mapconcat (lambda (var)
+                                         var)
+                                       vars "")
+                            (org-babel-chomp body))))
     ;; insert into temporary file
     (with-temp-file temp-file
       (insert full-body))
