@@ -217,17 +217,6 @@ See `message' for more information about FMT and ARGS arguments."
                       `(,(car option) ,(assoc-default key params))))
                   params-alist))))
 
-(defun org-babel-elixir-var-to-elixir (var)
-  "Convert an elisp value to an Elixir variable.
-Convert an elisp value, VAR, into a string of Elixir source code
-specifying a variable of the same value."
-  (if (listp var)
-      (concat "[" (mapconcat #'org-babel-elixir-var-to-elixir var ", ") "]")
-    (if (equal var 'hline) org-babel-elixir-hline
-      (format
-       (if (and (stringp var) (string-match "[\n\r]" var)) "\"\"%S\"\"" "%S")
-       (if (stringp var) (substring-no-properties var) var)))))
-
 (defun org-babel-elixir--trim-string (results)
   "Remove white spaces from RESULTS."
   (let ((regexps '("[ \t\n]*\\'" "\\`[ \t\n]*"))
@@ -338,12 +327,28 @@ VARS contains resolved variable references."
         (insert (org-babel-chomp body)))
       buffer)))
 
+(defun org-babel-elixir-var-to-elixir (var)
+  "Convert an elisp value to an Elixir variable.
+Convert an elisp value, VAR, into a string of Elixir source code
+specifying a variable of the same value."
+  (cond
+   ((listp var)
+    (concat "[" (mapconcat #'org-babel-elixir-var-to-elixir var ", ") "]"))
+   ((vectorp var)
+    (concat "{" (mapconcat #'org-babel-elixir-var-to-elixir var ", ") "}"))
+   (t
+    (if (equal var 'hline)
+        org-babel-elixir-hline
+      (format
+       (if (and (stringp var) (string-match "[\r\n]" var)) "\"\"%S\"\"" "%S")
+       (if (stringp var) (substring-no-properties var) var))))))
+
 (defun org-babel-variable-assignments:elixir (params)
   "Return a list of Elixir statements assigning the block's variables.
 The variables are defined in PARAMS."
   (mapcar
    (lambda (pair)
-     (format "%s=%s\n"
+     (format "%s = %s"
              (car pair)
              (org-babel-elixir-var-to-elixir (cdr pair))))
    (org-babel--get-vars params)))
@@ -353,8 +358,8 @@ The variables are defined in PARAMS."
   ;; variable assignments
   (let* ((vars (org-babel-variable-assignments:elixir params))
          (temp-file (org-babel-temp-file "elixir-"))
-         (full-body (concat (mapconcat (lambda (var) var) vars "") (org-babel-chomp body))))
-    (princ full-body)
+         (full-body (concat (mapconcat (lambda (var) var) vars "\n") (org-babel-chomp body))))
+    (prin1 full-body)
     ;; insert into temporary file
     (with-temp-file temp-file
       (insert full-body))
