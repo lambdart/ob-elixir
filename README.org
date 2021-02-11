@@ -204,7 +204,7 @@
 
 ** List
 
-   +BEGIN_SRC elixir :results "replace" :var n=[1 2 3]
+   +BEGIN_SRC elixir :results "replace" :var n='(1 2 3)
    : i n
    +END_SRC
 
@@ -220,19 +220,19 @@
 
 ** Tuples
 
-   +BEGIN_SRC elixir :results "replace" :var n='(1 "tuple" :true)
+   +BEGIN_SRC elixir :results "replace" :var n='[1 "tuple" :true]
    : i n
    +END_SRC
 
-   +RESULTS:
-   : Term
-   :   {1, "tuple", true}
-   : Data type
-   :   Tuple
-   : Reference modules
-   :   Tuple
-   : Implemented protocols
-   :   IEx.Info, Inspect
+  #+RESULTS:
+  : Term
+  :   {1, "tuple", true}
+  : Data type
+  :   Tuple
+  : Reference modules
+  :   Tuple
+  : Implemented protocols
+  :   IEx.Info, Inspect
 
 * Customize
 
