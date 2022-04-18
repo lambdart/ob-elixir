@@ -89,12 +89,14 @@
   "Elixir header arguments.")
 
 (defvar org-babel-elixir-filter-regexps
-  '("\n\\(\\(iex\\|[.]+\\)\\(([^@]+@[^)]+)[0-9]+\\|([0-9]+)\\)> \\)+"
+  '("\\(\\(iex\\|[.]+\\)\\(([^@]+@[^)]+)[0-9]+\\|([0-9]+)\\)> \\)"
+    "\x1b\[[0-9;]*m"
     "\\`[ \t\n]*"
     "[ \t\n]*\\'"
     "\r"
     "\1^M"
-    "^import_file([^)]+)\n")
+    "^import_file([^)]+)\n"
+    "\u2029")
   "List of filter regex expressions.")
 
 (defvar org-babel-elixir-raw-output ""
@@ -113,25 +115,21 @@ See `message' for more information about FMT and ARGS arguments."
 
 (defun org-babel-elixir-process-output ()
   "Return process output."
-  ;; update eoe-indicator
-  (let ((eoe-indicator (format "\"%s\"" org-babel-elixir-eoe-indicator)))
-    ;; parse output (remove eoe-indicator)
-    (replace-regexp-in-string (regexp-quote eoe-indicator)
-                              ""
-                              org-babel-elixir-raw-output)))
+  (reverse org-babel-elixir-raw-output))
+
+(defvar org-babel-elixir-process-ends nil)
 
 (defun org-babel-elixir-process-wait ()
-  "Wait for the the process output."
-  (while (not (string-match-p
-               org-babel-elixir-eoe-indicator
-               org-babel-elixir-raw-output))
-    (sit-for 0.1)))
+  "Wait process ends indicator."
+  (while (eq org-babel-elixir-process-ends nil)
+    (sleep-for 00.1)))
 
 (defun org-babel-elixir-send-string (process string)
   "Send STRING to Elixir PROCESS."
   (let ((string (format "%s\n" string)))
     ;; clean process raw output
-    (setq org-babel-elixir-raw-output "")
+    (setq org-babel-elixir-raw-output '()
+          org-babel-elixir-process-ends nil)
     ;; send string to process
     (process-send-string process string)
     ;; accept process output (default timeout 1 minute)
@@ -161,12 +159,16 @@ See `message' for more information about FMT and ARGS arguments."
   "Filter PROCESS OUTPUT."
   ;; debug message
   (unless (process-live-p process)
-    (org-babel-elixir--message "process die"))
-  ;; insertion filer (test)
+    (progn
+      (setq org-babel-elixir-process-ends t)
+      (org-babel-elixir--message "process die")))
+  ;; insertion filter (test)
   (org-babel-elixir-insert-string process output)
-  ;; concat raw process output
-  (setq org-babel-elixir-raw-output
-        (concat org-babel-elixir-raw-output output)))
+  ;; save raw process output
+  (push output org-babel-elixir-raw-output)
+  ;; update process indicator
+  (if (not (string-match-p org-babel-elixir-eoe-indicator output))
+    (setq org-babel-elixir-process-ends t)))
 
 (defun org-babel-elixir-start-process (buffer-name params)
   "Parse the process PARAMS, start the process using its BUFFER-NAME."
@@ -252,10 +254,11 @@ See `message' for more information about FMT and ARGS arguments."
         ;; verify if elixir REPL program exists
         (when (executable-find org-babel-elixir-program)
           ;; set comint buffer
-          (setq buffer
-                (apply 'make-comint session org-babel-elixir-program nil
-                       (if (not params) nil
-                         (org-babel-elixir-parse-process-params params))))
+          (setq buffer (apply 'make-comint
+                              session
+                              org-babel-elixir-program
+                              nil
+                              (and params (org-babel-elixir-parse-process-params params))))
           ;; error if (comint) buffer wasn't created
           (unless buffer
             (error "[ob-elixir]: Error, wasn't possible to create the process"))
@@ -280,22 +283,16 @@ See `message' for more information about FMT and ARGS arguments."
 
 (defun org-babel-elixir-evaluate-session (session body)
   "Evaluate BODY in SESSION, i.e, the comint buffer."
-  (let* ((buffer (format "*%s*" session))
-         (send-wait (lambda ()
-                      (comint-send-input t nil)
-                      (sleep-for 0 5)))
-         (insert-line (lambda (line)
-                        (insert line "\n")
-                        (funcall send-wait)))
-         (lines `("IEx.configure(colors: [enabled: false])"
-                  ,body
-                  "IEx.configure(colors: [enabled: true])"))
-         ;; set results (comint output)
-         (results (org-babel-comint-with-output (buffer org-babel-elixir-hline t body)
-                    (dolist (line lines)
-                      (funcall insert-line line)))))
-    ;; return results (convert to strings)
-    (prin1-to-string (butlast (nthcdr 2 results) 3))))
+  (butlast
+   (nthcdr 3
+           (org-babel-comint-with-output ((format "*%s*" session) "nil")
+             (mapc (lambda (line)
+                     (insert line "\n")
+                     (comint-send-input))
+                   `("IEx.configure(colors: [enabled: false])"
+                     ,body
+                     "IEx.configure(colors: [enabled: true])"))))
+   4))
 
 (defun org-babel-elixir-evaluate (session body &optional params)
   "Evaluate BODY elixir code in SESSION."
@@ -373,18 +370,19 @@ The variables are defined in PARAMS."
   "Parse PARAMS and Evaluate BODY (elixir source code block).
 This function is called by `org-babel-execute-src-block'."
   (let* ((params (org-babel-process-params params))
-         (session (org-babel-elixir-initiate-session (cdr (assoc :session params)) params))
-         (results (org-babel-elixir-evaluate session
-                                             (org-babel-expand-body:elixir body params)
-                                             params)))
-    (and results
-     (let ((regexps org-babel-elixir-filter-regexps))
-       ;; apply string replace using the list of regexps
-       (dolist (regexp regexps)
-         ;; update the process output string
-         (setq results (replace-regexp-in-string regexp "" results)))
-       ;; finally: insert the results
-       (org-babel-elixir-insert-results results)))))
+         (session (org-babel-elixir-initiate-session
+                   (cdr (assoc :session params)) params))
+         (results
+          (mapconcat 'identity
+                     (org-babel-elixir-evaluate session
+                                                (org-babel-expand-body:elixir body params)
+                                                params)
+                     "")))
+    (org-babel-elixir-insert-results
+     (replace-regexp-in-string
+      "\\(\\(iex\\|[.]+\\)\\(([^@]+@[^)]+)[0-9]+\\|([0-9]+)\\)> \\)\\|\u2029"
+      ""
+      results))))
 
 ;; add elixir to org-babel language extensions
 (add-to-list 'org-babel-tangle-lang-exts '("elixir" . "iex"))
