@@ -88,6 +88,26 @@
     (S     . :any))
   "Elixir header arguments.")
 
+(defvar org-babel-elixir-eoe-indicator-function
+  (lambda () (format "%s" (random)))
+  "End of evaluation indicator function.")
+
+(defvar org-babel-elixir-eoe-indicator "\u2029"
+  "End of evaluation indicator.")
+
+(defun org-babel-elixir-insert-eoe-indicator (process)
+  "Insert eoe indicator to PROCESS."
+  (let ((indicator
+         (if (functionp org-babel-elixir-eoe-indicator-function)
+             (setq org-babel-elixir-eoe-indicator
+                   (funcall org-babel-elixir-eoe-indicator-function))
+           org-babel-elixir-eoe-indicator)))
+    (setq org-babel-elixir-eoe-indicator
+          (concat "\"" indicator "\""))
+    (process-send-string
+     process
+     (format "\"%s\"\n" indicator))))
+
 (defvar org-babel-elixir-filter-regexps
   '("\\(\\(iex\\|[.]+\\)\\(([^@]+@[^)]+)[0-9]+\\|([0-9]+)\\)> \\)"
     "\x1b\[[0-9;]*m"
@@ -96,14 +116,18 @@
     "\r"
     "\1^M"
     "^import_file([^)]+)\n"
-    "\u2029")
+    org-babel-elixir-eoe-indicator)
   "List of filter regex expressions.")
+
+(defun org-babel-elixir-replace-filter (result regexp-or-symbol)
+  "Replace RESULT with REGEXP-OR-SYMBOL."
+  (let ((regexp (if (symbolp regexp-or-symbol)
+                    (symbol-value regexp-or-symbol)
+                  regexp-or-symbol)))
+    (replace-regexp-in-string regexp "" result)))
 
 (defvar org-babel-elixir-raw-output ""
   "Auxiliary variable to hold process output.")
-
-(defvar org-babel-elixir-eoe-indicator "\u2029"
-  "End of evaluation indicator.")
 
 (defvar org-babel-elixir-hline "nil"
   "Our hline string value.")
@@ -135,9 +159,7 @@ See `message' for more information about FMT and ARGS arguments."
     ;; accept process output (default timeout 1 minute)
     (accept-process-output process org-babel-elixir-timeout nil t)
     ;; send end indicator
-    (process-send-string process
-                         (format "\"%s\"\n"
-                                 org-babel-elixir-eoe-indicator))
+    (org-babel-elixir-insert-eoe-indicator process)
     ;; wait for the process
     (org-babel-elixir-process-wait)
     ;; return process raw output
@@ -167,7 +189,7 @@ See `message' for more information about FMT and ARGS arguments."
   ;; save raw process output
   (push output org-babel-elixir-raw-output)
   ;; update process indicator
-  (if (not (string-match-p org-babel-elixir-eoe-indicator output))
+  (if (string-match-p org-babel-elixir-eoe-indicator output)
     (setq org-babel-elixir-process-ends t)))
 
 (defun org-babel-elixir-start-process (buffer-name params)
@@ -372,17 +394,18 @@ This function is called by `org-babel-execute-src-block'."
   (let* ((params (org-babel-process-params params))
          (session (org-babel-elixir-initiate-session
                    (cdr (assoc :session params)) params))
-         (results
-          (mapconcat 'identity
-                     (org-babel-elixir-evaluate session
-                                                (org-babel-expand-body:elixir body params)
-                                                params)
-                     "")))
-    (org-babel-elixir-insert-results
-     (replace-regexp-in-string
-      "\\(\\(iex\\|[.]+\\)\\(([^@]+@[^)]+)[0-9]+\\|([0-9]+)\\)> \\)\\|\u2029"
-      ""
-      results))))
+         (result (mapconcat
+                  'identity
+                  (org-babel-elixir-evaluate
+                   session
+                   (org-babel-expand-body:elixir body params)
+                   params)
+                  ""))
+         (result (seq-reduce
+                  #'org-babel-elixir-replace-filter
+                  org-babel-elixir-filter-regexps
+                  result)))
+    (org-babel-elixir-insert-results result)))
 
 ;; add elixir to org-babel language extensions
 (add-to-list 'org-babel-tangle-lang-exts '("elixir" . "iex"))
